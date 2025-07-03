@@ -45,8 +45,8 @@ async fn test_model_config_validation() {
 
 #[tokio::test]
 async fn test_transcriber_creation() {
-    // Test successful creation
-    let config = ModelConfig::new("base", "cpu", "float32");
+    // Test successful creation with medium model (default)
+    let config = ModelConfig::new("medium", "cpu", "float32");
     let result = FasterWhisperTranscriber::new(config);
     assert!(result.is_ok());
 
@@ -219,5 +219,72 @@ async fn test_benchmark_execution() {
                 e
             );
         }
+    }
+}
+
+#[tokio::test]
+async fn test_medium_model_creation() {
+    // Test medium model creation with different configurations
+    let configs = vec![
+        ModelConfig::new("medium", "auto", "float16"),
+        ModelConfig::new("medium", "cpu", "float32"),
+    ];
+
+    for config in configs {
+        let result = FasterWhisperTranscriber::new(config.clone());
+        assert!(
+            result.is_ok(),
+            "Failed to create transcriber with config: {:?}",
+            config
+        );
+    }
+}
+
+#[tokio::test] 
+async fn test_metal_acceleration_detection() {
+    // Test Metal acceleration detection on macOS
+    let config = ModelConfig::new("medium", "auto", "float16");
+    let transcriber = FasterWhisperTranscriber::new(config).unwrap();
+    
+    // This should not fail even if Metal is not available
+    let device_info = transcriber.get_device_info();
+    assert!(device_info.is_ok(), "Device info should be retrievable");
+    
+    let info = device_info.unwrap();
+    println!("Device info: {}", info);
+}
+
+#[tokio::test]
+async fn test_performance_comparison() {
+    use std::fs;
+    
+    // Create a small test audio file if none exists
+    let test_file = "test_audio.wav";
+    
+    // Skip if no test audio file is available
+    if !std::path::Path::new(test_file).exists() {
+        println!("Skipping performance test - no test audio file available");
+        return;
+    }
+
+    // Test performance comparison between base and medium
+    let models = vec!["base", "medium"];
+    let results = FasterWhisperTranscriber::benchmark_model_comparison(
+        test_file,
+        &models,
+        "auto", 
+        "float16"
+    );
+
+    if let Ok(benchmark_results) = results {
+        assert_eq!(benchmark_results.len(), 2);
+        
+        for (model, result) in &benchmark_results {
+            println!("Model {}: RTF = {:.2}x", model, result.real_time_factor);
+            assert!(result.transcription_time > 0.0, "Transcription time should be positive");
+            assert!(result.duration > 0.0, "Audio duration should be positive");
+        }
+    } else {
+        println!("Skipping performance comparison - faster-whisper not available");
     }
 }

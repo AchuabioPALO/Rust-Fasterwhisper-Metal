@@ -74,6 +74,26 @@ impl Benchmark {
         }
     }
 
+    /// Add specific benchmark for medium vs base model comparison
+    pub fn add_medium_vs_base_comparison(&mut self, device: &str, compute_type: &str) {
+        info!("Adding medium vs base model comparison");
+        self.add_config(ModelConfig::new("base", device, compute_type));
+        self.add_config(ModelConfig::new("medium", device, compute_type));
+    }
+
+    /// Add Metal acceleration specific benchmarks
+    pub fn add_metal_optimized_benchmarks(&mut self) {
+        info!("Adding Metal-optimized benchmarks for Apple Silicon");
+        
+        // Compare CPU vs Metal for medium model
+        self.add_config(ModelConfig::new("medium", "cpu", "float32"));
+        self.add_config(ModelConfig::new("medium", "auto", "float16")); // Auto detects Metal
+        
+        // Different compute types on Metal
+        self.add_config(ModelConfig::new("medium", "auto", "float16"));
+        self.add_config(ModelConfig::new("medium", "auto", "float32"));
+    }
+
     pub async fn run<P: AsRef<Path>>(&self, audio_path: P) -> Result<Vec<BenchmarkResult>> {
         let audio_path = audio_path.as_ref();
         let mut results = Vec::new();

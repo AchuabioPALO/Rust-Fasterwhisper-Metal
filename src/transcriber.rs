@@ -71,7 +71,7 @@ impl FasterWhisperTranscriber {
             // Create WhisperModel with Metal/GPU acceleration
             let model_kwargs = PyDict::new(py);
 
-            // Map device names for compatibility with faster-whisper
+            // Enhanced device mapping for Metal acceleration on macOS
             let device = match self.config.device.as_str() {
                 "mps" => "auto",  // faster-whisper auto-detects Metal acceleration
                 "cuda" => "auto", // faster-whisper auto-detects CUDA
@@ -82,6 +82,13 @@ impl FasterWhisperTranscriber {
 
             model_kwargs.set_item("device", device)?;
             model_kwargs.set_item("compute_type", &self.config.compute_type)?;
+            
+            // Add Metal-specific optimizations for medium model
+            if self.config.model_size == "medium" && (self.config.device == "mps" || self.config.device == "auto") {
+                // Enable additional optimizations for medium model on Metal
+                model_kwargs.set_item("cpu_threads", 0)?; // Use all available cores
+                model_kwargs.set_item("num_workers", 1)?; // Optimal for Metal
+            }
 
             info!(
                 "Initializing FasterWhisper model: {} on {} with compute_type: {}",
@@ -95,12 +102,25 @@ impl FasterWhisperTranscriber {
                     TranscriptionError::ModelInitError(format!("Failed to initialize model: {}", e))
                 })?;
 
-            // Transcribe with optimized settings for speed and accuracy
+            // Transcribe with optimized settings for medium model and Metal acceleration
             let transcribe_kwargs = PyDict::new(py);
-            transcribe_kwargs.set_item("beam_size", 5)?;
+            
+            // Optimized parameters for medium model
+            if self.config.model_size == "medium" {
+                transcribe_kwargs.set_item("beam_size", 5)?; // Good balance for medium model
+                transcribe_kwargs.set_item("best_of", 5)?; // Better quality for medium model
+                transcribe_kwargs.set_item("temperature", 0.0)?; // Deterministic results
+            } else {
+                transcribe_kwargs.set_item("beam_size", 3)?; // Conservative for smaller models
+            }
+            
             transcribe_kwargs.set_item("word_timestamps", true)?;
             transcribe_kwargs.set_item("vad_filter", true)?;
-            transcribe_kwargs.set_item("vad_parameters", PyDict::new(py))?;
+            
+            // Basic vad parameters that are widely supported
+            let vad_params = PyDict::new(py);
+            vad_params.set_item("threshold", 0.5)?;
+            transcribe_kwargs.set_item("vad_parameters", vad_params)?;
 
             info!("Starting transcription...");
             let result = model
@@ -204,6 +224,68 @@ impl FasterWhisperTranscriber {
             info!("✓ Model initialization successful");
             Ok(())
         })
+    }
+
+    /// Get information about the actual device being used
+    pub fn get_device_info(&self) -> Result<String> {
+        Python::with_gil(|py| -> Result<String> {
+            let faster_whisper = py.import("faster_whisper").map_err(|e| {
+                TranscriptionError::ModelInitError(format!(
+                    "Failed to import faster_whisper: {}",
+                    e
+                ))
+            })?;
+
+            let model_kwargs = PyDict::new(py);
+            let device = match self.config.device.as_str() {
+                "mps" => "auto",
+                "cuda" => "auto", 
+                "cpu" => "cpu",
+                "auto" => "auto",
+                _ => "auto",
+            };
+
+            model_kwargs.set_item("device", device)?;
+            model_kwargs.set_item("compute_type", &self.config.compute_type)?;
+
+            let model = faster_whisper
+                .getattr("WhisperModel")?
+                .call((&self.config.model_size,), Some(model_kwargs))
+                .map_err(|e| {
+                    TranscriptionError::ModelInitError(format!("Failed to initialize model: {}", e))
+                })?;
+
+            // Try to get device information
+            let device_info = if let Ok(device_attr) = model.getattr("device") {
+                device_attr.to_string()
+            } else {
+                format!("Device: {} (configured), Compute Type: {}", 
+                       self.config.device, self.config.compute_type)
+            };
+
+            Ok(device_info)
+        })
+    }
+
+    /// Compare performance between different model sizes
+    pub fn benchmark_model_comparison<P: AsRef<Path>>(
+        audio_path: P,
+        models: &[&str],
+        device: &str,
+        compute_type: &str,
+    ) -> Result<Vec<(String, TranscriptionResult)>> {
+        let audio_path = audio_path.as_ref();
+        let mut results = Vec::new();
+
+        for model_size in models {
+            info!("Benchmarking model: {}", model_size);
+            let config = ModelConfig::new(model_size, device, compute_type);
+            let transcriber = FasterWhisperTranscriber::new(config)?;
+            let result = transcriber.transcribe(audio_path)?;
+            results.push((model_size.to_string(), result));
+        }
+
+        Ok(results)
     }
 }
 

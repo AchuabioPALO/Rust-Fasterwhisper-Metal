@@ -87,17 +87,21 @@ async fn run_benchmark(input_path: PathBuf, output_path: Option<PathBuf>) -> Res
 
     let mut benchmark = Benchmark::new();
 
-    // Add CPU vs Metal comparison for base model
+    // Add medium vs base comparison - the primary focus
+    info!("Adding medium vs base model comparison...");
+    benchmark.add_medium_vs_base_comparison("auto", "float16");
+
+    // Add Metal-specific optimizations
+    info!("Adding Metal acceleration benchmarks...");
+    benchmark.add_metal_optimized_benchmarks();
+
+    // Add CPU vs Metal comparison for base model (for reference)
     info!("Adding CPU vs Metal comparison tests...");
     benchmark.add_cpu_vs_metal_comparison("base", "float16");
 
-    // Add model size comparison on Metal
-    info!("Adding model size comparison tests...");
-    benchmark.add_model_size_comparison("mps", "float16");
-
-    // Add compute type comparison
+    // Add compute type comparison for medium model
     info!("Adding compute type comparison tests...");
-    benchmark.add_compute_type_comparison("base", "mps");
+    benchmark.add_compute_type_comparison("medium", "auto");
 
     let results = benchmark
         .run(&input_path)
@@ -113,6 +117,78 @@ async fn run_benchmark(input_path: PathBuf, output_path: Option<PathBuf>) -> Res
             .save_results_json(&results, &output_path)
             .map_err(|e| anyhow::anyhow!("Failed to save benchmark results: {}", e))?;
         info!("Benchmark results saved to: {}", output_path.display());
+    }
+
+    Ok(())
+}
+
+async fn run_medium_model_benchmark(
+    input_path: PathBuf,
+    device: &str,
+    compute_type: &str,
+) -> Result<()> {
+    info!("🚀 Starting medium model benchmark on Metal acceleration...");
+
+    let models = vec!["base", "medium"];
+    let results = FasterWhisperTranscriber::benchmark_model_comparison(
+        &input_path,
+        &models,
+        device,
+        compute_type,
+    )?;
+
+    println!("\n=== Medium Model Benchmark Results ===");
+    println!("Audio file: {}", input_path.display());
+    println!("Device: {}, Compute Type: {}", device, compute_type);
+    println!();
+
+    for (model, result) in &results {
+        println!("Model: {}", model);
+        println!("  Duration: {:.2}s", result.duration);
+        println!("  Transcription Time: {:.2}s", result.transcription_time);
+        println!("  Real-time Factor: {:.2}x", result.real_time_factor);
+        println!("  Language: {} ({:.1}% confidence)", result.language, result.language_probability * 100.0);
+
+        // Show performance classification
+        let performance_class = if result.real_time_factor > 10.0 {
+            "🚀 Excellent"
+        } else if result.real_time_factor > 5.0 {
+            "⚡ Great"
+        } else if result.real_time_factor > 2.0 {
+            "✅ Good"
+        } else if result.real_time_factor > 1.0 {
+            "⚠️ Acceptable"
+        } else {
+            "❌ Slow"
+        };
+
+        println!("  Performance: {}", performance_class);
+        println!();
+    }
+
+    // Calculate improvement
+    if results.len() >= 2 {
+        let base_rtf = results[0].1.real_time_factor;
+        let medium_rtf = results[1].1.real_time_factor;
+        let improvement = if base_rtf > 0.0 {
+            (medium_rtf - base_rtf) / base_rtf * 100.0
+        } else {
+            0.0
+        };
+
+        println!("=== Performance Comparison ===");
+        if improvement > 0.0 {
+            println!("🏆 Medium model is {:.1}% faster than base model", improvement);
+        } else {
+            println!("🐌 Medium model is {:.1}% slower than base model", -improvement);
+        }
+
+        let accuracy_note = if medium_rtf > 0.0 {
+            "Note: Medium model typically provides better accuracy despite potential speed differences"
+        } else {
+            "Note: Performance may vary based on audio content and system configuration"
+        };
+        println!("{}", accuracy_note);
     }
 
     Ok(())
@@ -149,7 +225,7 @@ async fn main() -> Result<()> {
                 .long("model")
                 .value_name("SIZE")
                 .help("Model size: tiny, base, small, medium, large-v2, large-v3")
-                .default_value("base"),
+                .default_value("medium"),
         )
         .arg(
             Arg::new("device")
@@ -176,6 +252,14 @@ async fn main() -> Result<()> {
                     "Run comprehensive benchmark comparing CPU vs Metal and different model sizes",
                 ),
         )
+        .arg(
+            Arg::new("medium_benchmark")
+                .long("medium-bench")
+                .action(clap::ArgAction::SetTrue)
+                .help(
+                    "Run specific benchmark comparing base vs medium model on Metal acceleration",
+                ),
+        )
         .get_matches();
 
     let input_path = PathBuf::from(matches.get_one::<String>("input").unwrap());
@@ -184,12 +268,22 @@ async fn main() -> Result<()> {
     let device = matches.get_one::<String>("device").unwrap();
     let compute_type = matches.get_one::<String>("compute_type").unwrap();
     let run_benchmark_mode = matches.get_flag("benchmark");
+    let medium_benchmark = matches.get_flag("medium_benchmark");
 
     if run_benchmark_mode {
         if input_path.is_file() {
             return run_benchmark(input_path, output_path).await;
         } else {
             error!("Benchmark mode requires a single audio file as input");
+            std::process::exit(1);
+        }
+    }
+
+    if medium_benchmark {
+        if input_path.is_file() {
+            return run_medium_model_benchmark(input_path, device, compute_type).await;
+        } else {
+            error!("Medium benchmark mode requires a single audio file as input");
             std::process::exit(1);
         }
     }

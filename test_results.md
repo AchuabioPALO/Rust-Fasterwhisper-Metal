@@ -30,6 +30,20 @@
 - **Speech Quality**: Very low "no speech" probability (0.016)
 - **Model Performance**: Base model provided better accuracy than tiny model
 
+## 🚀 Performance Results (Intel Mac Reality Check)
+
+### CPU Performance (Intel i7 - Only Valid Results)
+| Model | Transcription Time | Real-time Factor | Language Confidence |
+|-------|-------------------|------------------|-------------------|
+| **Tiny** | 6.19s | 6.46x | 98.69% |
+| **Base** | 8.94s | 4.47x | 99.16% |
+| **Medium** | 51.82s | 0.77x | 99.53% |
+
+### ❌ Metal/MPS Results: NOT APPLICABLE
+- **Intel Mac Limitation**: No Apple Silicon = No MPS acceleration
+- **AMD Radeon Pro 5300M**: Doesn't accelerate faster-whisper
+- **Reality**: MPS falls back to CPU on Intel Macs
+
 ## 📊 Key Insights
 
 1. **Metal Acceleration**: Shows modest improvement (~3% faster) on this relatively small audio file
@@ -38,6 +52,9 @@
    - Tiny model: Faster processing, slightly lower accuracy
    - Base model: Better accuracy, more processing time
 4. **Scalability**: The true benefits of Metal acceleration would be more apparent with longer audio files
+5. **No Metal Acceleration**: Intel Mac shows no benefit from MPS device setting
+6. **CPU-Only Performance**: All results are effectively CPU-based
+7. **Model Trade-offs**: Medium model 6x slower but much better accuracy
 
 ## 🎉 Success Metrics
 - ✅ **Python Linking**: Resolved successfully

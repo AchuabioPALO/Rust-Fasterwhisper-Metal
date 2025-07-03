@@ -15,37 +15,37 @@ echo "Using Python: $PYTHON_EXEC"
 PYTHON_VERSION=$(python3 --version)
 echo "Python version: $PYTHON_VERSION"
 
-# Check if we're in a virtual environment
-if [[ "$VIRTUAL_ENV" != "" ]]; then
-    echo "✅ Virtual environment detected: $VIRTUAL_ENV"
-    # Use the virtual environment's Python
-    export PYTHON_SYS_EXECUTABLE="$PYTHON_EXEC"
+# Always prioritize Homebrew Python for PyO3 linking
+# Check for Homebrew Python installations first
+if [[ -f "/usr/local/opt/python@3.11/bin/python3.11" ]]; then
+    echo "✅ Found Homebrew Python 3.11"
+    export PYTHON_SYS_EXECUTABLE="/usr/local/opt/python@3.11/bin/python3.11"
+elif [[ -f "/opt/homebrew/bin/python3.11" ]]; then
+    echo "✅ Found Homebrew Python 3.11 (Apple Silicon)"
+    export PYTHON_SYS_EXECUTABLE="/opt/homebrew/bin/python3.11"
+elif [[ -f "/usr/local/opt/python@3.10/bin/python3.10" ]]; then
+    echo "✅ Found Homebrew Python 3.10"
+    export PYTHON_SYS_EXECUTABLE="/usr/local/opt/python@3.10/bin/python3.10"
+elif [[ -f "/opt/homebrew/bin/python3.10" ]]; then
+    echo "✅ Found Homebrew Python 3.10 (Apple Silicon)"
+    export PYTHON_SYS_EXECUTABLE="/opt/homebrew/bin/python3.10"
 else
-    echo "ℹ️  No virtual environment detected"
-    # Try to find the best system Python
-    if [[ -f "/opt/homebrew/bin/python3" ]]; then
-        echo "Found Homebrew Python"
-        export PYTHON_SYS_EXECUTABLE="/opt/homebrew/bin/python3"
-    elif [[ -f "/usr/local/bin/python3" ]]; then
-        echo "Found /usr/local/bin/python3"
-        export PYTHON_SYS_EXECUTABLE="/usr/local/bin/python3"
-    else
-        echo "Using system Python"
-        export PYTHON_SYS_EXECUTABLE="$PYTHON_EXEC"
-    fi
+    echo "❌ No proper Homebrew Python found. Please install:"
+    echo "   brew install python@3.11"
+    exit 1
 fi
 
 echo "🔧 Setting PYTHON_SYS_EXECUTABLE to: $PYTHON_SYS_EXECUTABLE"
 
 # Verify Python has the required modules
 echo "🧪 Checking Python configuration..."
-python3 -c "import sysconfig; print(f'Python lib dir: {sysconfig.get_config_var(\"LIBDIR\")}')"
-python3 -c "import sysconfig; print(f'Python include dir: {sysconfig.get_config_var(\"INCLUDEPY\")}')"
+$PYTHON_SYS_EXECUTABLE -c "import sysconfig; print(f'Python lib dir: {sysconfig.get_config_var(\"LIBDIR\")}')"
+$PYTHON_SYS_EXECUTABLE -c "import sysconfig; print(f'Python include dir: {sysconfig.get_config_var(\"INCLUDEPY\")}')"
 
 # Check if maturin is installed
-if ! python3 -c "import maturin" 2>/dev/null; then
+if ! $PYTHON_SYS_EXECUTABLE -c "import maturin" 2>/dev/null; then
     echo "📦 Installing maturin..."
-    python3 -m pip install maturin
+    $PYTHON_SYS_EXECUTABLE -m pip install maturin
 else
     echo "✅ maturin is already installed"
 fi

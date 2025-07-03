@@ -40,7 +40,7 @@ pub struct ModelConfig {
 impl Default for ModelConfig {
     fn default() -> Self {
         Self {
-            model_size: "base".to_string(),
+            model_size: "medium".to_string(),
             device: "auto".to_string(),
             compute_type: "float16".to_string(),
         }
