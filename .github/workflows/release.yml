@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+          body: |
+            ## Changes
+            - See [CHANGELOG.md](CHANGELOG.md) for details
+            
+            ## Installation
+            ```bash
+            # macOS (Apple Silicon)
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rust-whisper-app-aarch64-apple-darwin.tar.gz
+            tar -xzf rust-whisper-app-aarch64-apple-darwin.tar.gz
+            
+            # macOS (Intel)
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rust-whisper-app-x86_64-apple-darwin.tar.gz
+            tar -xzf rust-whisper-app-x86_64-apple-darwin.tar.gz
+            
+            # Linux
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rust-whisper-app-x86_64-unknown-linux-gnu.tar.gz
+            tar -xzf rust-whisper-app-x86_64-unknown-linux-gnu.tar.gz
+            ```
+
+  build-release:
+    name: Build Release
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macOS-latest
+          - target: aarch64-apple-darwin
+            os: macOS-latest
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+    
+    - name: Install Python (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install python@3.9
+        pip3.9 install faster-whisper
+    
+    - name: Install Python (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3.9 python3.9-pip python3.9-dev
+        pip3.9 install faster-whisper
+    
+    - name: Setup Python Environment
+      run: |
+        chmod +x scripts/setup_python_env.sh
+        ./scripts/setup_python_env.sh
+    
+    - name: Build release
+      run: |
+        source .env
+        cargo build --release --target ${{ matrix.target }}
+    
+    - name: Create archive
+      run: |
+        cd target/${{ matrix.target }}/release
+        tar -czf ../../../rust-whisper-app-${{ matrix.target }}.tar.gz rust-whisper-app
+        cd ../../..
+    
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./rust-whisper-app-${{ matrix.target }}.tar.gz
+        asset_name: rust-whisper-app-${{ matrix.target }}.tar.gz
+        asset_content_type: application/gzip
