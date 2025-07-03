@@ -23,15 +23,22 @@ if [[ -f "/usr/local/opt/python@3.11/bin/python3.11" ]]; then
 elif [[ -f "/opt/homebrew/bin/python3.11" ]]; then
     echo "✅ Found Homebrew Python 3.11 (Apple Silicon)"
     export PYTHON_SYS_EXECUTABLE="/opt/homebrew/bin/python3.11"
+elif [[ -f "/usr/bin/python3.11" ]]; then
+    echo "✅ Found system Python 3.11 (Linux CI)"
+    export PYTHON_SYS_EXECUTABLE="/usr/bin/python3.11"
 elif [[ -f "/usr/local/opt/python@3.10/bin/python3.10" ]]; then
     echo "✅ Found Homebrew Python 3.10"
     export PYTHON_SYS_EXECUTABLE="/usr/local/opt/python@3.10/bin/python3.10"
 elif [[ -f "/opt/homebrew/bin/python3.10" ]]; then
     echo "✅ Found Homebrew Python 3.10 (Apple Silicon)"
     export PYTHON_SYS_EXECUTABLE="/opt/homebrew/bin/python3.10"
+elif [[ -f "/usr/bin/python3.10" ]]; then
+    echo "✅ Found system Python 3.10 (Linux CI)"
+    export PYTHON_SYS_EXECUTABLE="/usr/bin/python3.10"
 else
-    echo "❌ No proper Homebrew Python found. Please install:"
-    echo "   brew install python@3.11"
+    echo "❌ No proper Python found. Please install:"
+    echo "   macOS: brew install python@3.11"
+    echo "   Linux: sudo apt-get install python3.11 python3.11-dev"
     exit 1
 fi
 
@@ -50,9 +57,20 @@ else
     echo "✅ maturin is already installed"
 fi
 
-# Export the environment variable
+# Export the environment variable for both current session and .env file
+export PYO3_PYTHON=$PYTHON_SYS_EXECUTABLE
+export KMP_DUPLICATE_LIB_OK=TRUE
 echo "export PYTHON_SYS_EXECUTABLE=$PYTHON_SYS_EXECUTABLE" > .env
+echo "export PYO3_PYTHON=$PYTHON_SYS_EXECUTABLE" >> .env
+echo "export KMP_DUPLICATE_LIB_OK=TRUE" >> .env
 echo "📝 Created .env file with Python configuration"
+
+# For GitHub Actions, also set the environment variable in GITHUB_ENV if it exists
+if [[ -n "$GITHUB_ENV" ]]; then
+    echo "PYO3_PYTHON=$PYTHON_SYS_EXECUTABLE" >> $GITHUB_ENV
+    echo "KMP_DUPLICATE_LIB_OK=TRUE" >> $GITHUB_ENV
+    echo "📝 Added environment variables to GitHub Actions environment"
+fi
 
 echo "✅ Python environment setup complete!"
 echo ""

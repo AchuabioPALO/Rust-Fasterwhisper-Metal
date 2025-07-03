@@ -97,7 +97,7 @@ impl FasterWhisperTranscriber {
 
             let model = faster_whisper
                 .getattr("WhisperModel")?
-                .call((&self.config.model_size,), Some(model_kwargs))
+                .call((&self.config.model_size,), Some(&model_kwargs))
                 .map_err(|e| {
                     TranscriptionError::ModelInitError(format!("Failed to initialize model: {}", e))
                 })?;
@@ -124,7 +124,7 @@ impl FasterWhisperTranscriber {
 
             info!("Starting transcription...");
             let result = model
-                .call_method("transcribe", (audio_path_str,), Some(transcribe_kwargs))
+                .call_method("transcribe", (audio_path_str,), Some(&transcribe_kwargs))
                 .map_err(|e| {
                     TranscriptionError::TranscriptionFailed(format!("Transcription failed: {}", e))
                 })?;
@@ -142,7 +142,7 @@ impl FasterWhisperTranscriber {
             let mut segments = Vec::new();
             let mut full_text = String::new();
 
-            for segment in segments_iter.iter()? {
+            for segment in segments_iter.try_iter()? {
                 let segment = segment?;
                 let start = segment.getattr("start")?.extract::<f64>()?;
                 let end = segment.getattr("end")?.extract::<f64>()?;
@@ -216,7 +216,7 @@ impl FasterWhisperTranscriber {
 
             let _model = faster_whisper
                 .getattr("WhisperModel")?
-                .call((&self.config.model_size,), Some(model_kwargs))
+                .call((&self.config.model_size,), Some(&model_kwargs))
                 .map_err(|e| {
                     TranscriptionError::ModelInitError(format!("Failed to initialize model: {}", e))
                 })?;
@@ -250,7 +250,7 @@ impl FasterWhisperTranscriber {
 
             let model = faster_whisper
                 .getattr("WhisperModel")?
-                .call((&self.config.model_size,), Some(model_kwargs))
+                .call((&self.config.model_size,), Some(&model_kwargs))
                 .map_err(|e| {
                     TranscriptionError::ModelInitError(format!("Failed to initialize model: {}", e))
                 })?;

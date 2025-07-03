@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2025-07-03
+## [0.2.0] - 2025-07-03
+
+### Security
+- Upgraded PyO3 from 0.18 to 0.24 to fix RUSTSEC-2025-0020 vulnerability
+
+### Fixed
+- Updated PyO3 API usage to use references for Python dictionaries
+- Replaced deprecated `.iter()` with `.try_iter()` for PyO3 compatibility
+- Fixed CI workflow to properly set the Python environment
+- Added KMP_DUPLICATE_LIB_OK=TRUE to fix OpenMP library conflicts
+- Enhanced Python environment detection for Python 3.11
+
+### Changed
+- Improved support for Apple Silicon Macs with Metal GPU acceleration
+- Updated CI workflow to use Python 3.11
+
+## [0.1.0] - 2025-07-01
 
 ### Added
 - Initial implementation of Rust + faster-whisper transcription application

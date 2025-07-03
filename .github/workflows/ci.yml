@@ -39,20 +39,35 @@ jobs:
     - name: Install Python (macOS)
       if: runner.os == 'macOS'
       run: |
-        brew install python@3.9
-        pip3.9 install faster-whisper
+        brew install python@3.11
+        pip3.11 install faster-whisper torch torchvision torchaudio
     
     - name: Install Python (Linux)
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3.9 python3.9-pip python3.9-dev
-        pip3.9 install faster-whisper
+        sudo apt-get install -y python3.11 python3.11-pip python3.11-dev python3.11-venv
+        python3.11 -m pip install --upgrade pip
+        python3.11 -m pip install faster-whisper torch torchvision torchaudio
     
     - name: Setup Python Environment
       run: |
         chmod +x scripts/setup_python_env.sh
         ./scripts/setup_python_env.sh
+        
+    - name: Set PyO3 Environment (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        if [[ -f "/opt/homebrew/bin/python3.11" ]]; then
+          echo "PYO3_PYTHON=/opt/homebrew/bin/python3.11" >> $GITHUB_ENV
+        else
+          echo "PYO3_PYTHON=/usr/local/bin/python3.11" >> $GITHUB_ENV
+        fi
+        
+    - name: Set PyO3 Environment (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        echo "PYO3_PYTHON=/usr/bin/python3.11" >> $GITHUB_ENV
     
     - name: Check formatting
       run: cargo fmt --all -- --check
@@ -62,17 +77,18 @@ jobs:
     
     - name: Build
       run: |
-        source .env
+        echo "Using Python at: $PYO3_PYTHON"
         cargo build --verbose
     
     - name: Run tests
       run: |
-        source .env
+        echo "Using Python at: $PYO3_PYTHON"
+        export KMP_DUPLICATE_LIB_OK=TRUE
         cargo test --verbose
     
     - name: Build release
       run: |
-        source .env
+        echo "Using Python at: $PYO3_PYTHON"
         cargo build --release --verbose
 
   security:
@@ -98,20 +114,26 @@ jobs:
     - name: Install Python dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3.9 python3.9-pip python3.9-dev
-        pip3.9 install faster-whisper
+        sudo apt-get install -y python3.11 python3.11-pip python3.11-dev python3.11-venv
+        python3.11 -m pip install --upgrade pip
+        python3.11 -m pip install faster-whisper torch torchvision torchaudio
     
     - name: Setup Python Environment
       run: |
         chmod +x scripts/setup_python_env.sh
         ./scripts/setup_python_env.sh
+        
+    - name: Set PyO3 Environment
+      run: |
+        echo "PYO3_PYTHON=/usr/bin/python3.11" >> $GITHUB_ENV
     
     - name: Install cargo-llvm-cov
       run: cargo install cargo-llvm-cov
     
     - name: Generate coverage
       run: |
-        source .env
+        echo "Using Python at: $PYO3_PYTHON"
+        export KMP_DUPLICATE_LIB_OK=TRUE
         cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
     
     - name: Upload coverage to Codecov
